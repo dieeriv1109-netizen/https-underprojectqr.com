@@ -130,45 +130,46 @@
     </div>
 
     <script>
-      // 1. COLOCA AQUÍ TU URL DE GOOGLE APPS SCRIPT
+     // 1. COLOCA AQUÍ TU URL DE GOOGLE APPS SCRIPT
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8fsYmrOg52gJ43V1Vh-77cSLRE4daTTJrqCqWM5bbGkC6mxadJrk2ztRYSaSPWEua/exec"; 
 
 let sessionHistory = [];
 let currentName = ""; 
 
-// Función para traer datos de la nube
-async function fetchCloudData() {
-    try {
-        const response = await fetch(SCRIPT_URL);
-        const cloudData = await response.json();
-        if (cloudData && cloudData.length > 0) {
-            // Invertimos para que los nuevos salgan arriba
-            sessionHistory = cloudData.reverse(); 
-            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
-            renderHistory();
-        }
-    } catch(e) { 
-        console.log("Error sincronizando: ", e); 
-    }
-}
-
 // Carga inicial
 window.onload = function() {
-    // Cargar lo que haya en memoria del cel primero
     const savedData = localStorage.getItem('underproject_db');
     if (savedData) {
         sessionHistory = JSON.parse(savedData);
         renderHistory();
     }
-    // Luego buscar en la nube lo más reciente
-    fetchCloudData();
+    fetchCloudData(); // Traer datos nuevos de la nube
 };
 
-// Registrar nuevo asistente
+// Función para traer datos de la nube
+async function fetchCloudData() {
+    if (!SCRIPT_URL || SCRIPT_URL.includes("TU_URL")) return;
+    try {
+        const response = await fetch(SCRIPT_URL);
+        const cloudData = await response.json();
+        if (cloudData && cloudData.length > 0) {
+            sessionHistory = cloudData.reverse(); 
+            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+            renderHistory();
+        }
+    } catch(e) { console.log("Nube no disponible aún."); }
+}
+
+// ESTA ES LA FUNCIÓN QUE CORRIGE EL BLOQUEO DEL BOTÓN
 async function processRegistration() {
     const input = document.getElementById('userName');
     const name = input.value.trim();
     if (!name) return alert("Escribe un nombre.");
+
+    // Desactivar botón para evitar múltiples clics
+    const btn = event.target;
+    btn.innerText = "PROCESANDO...";
+    btn.disabled = true;
 
     const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
     const entryNumber = sessionHistory.length + 1;
@@ -181,12 +182,12 @@ async function processRegistration() {
         status: 'pendiente' 
     };
 
-    // Mostrar de inmediato en pantalla (UX rápida)
+    // 1. MOSTRAR QR DE INMEDIATO (Sin esperar a la nube)
     sessionHistory.unshift(newGuest);
     renderHistory();
     showTicket(name, newGuest.data, token);
 
-    // Enviar a Google Sheets de fondo
+    // 2. ENVIAR A LA NUBE EN SEGUNDO PLANO
     try {
         await fetch(SCRIPT_URL, {
             method: 'POST',
@@ -195,66 +196,70 @@ async function processRegistration() {
         });
         localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
     } catch(e) { 
-        console.error("No se pudo subir a la nube"); 
+        console.error("Error al subir, se guardó localmente."); 
+    } finally {
+        // Restaurar botón
+        btn.innerText = "GENERAR Y REGISTRAR";
+        btn.disabled = false;
     }
 }
 
-// --- MANTÉN TUS FUNCIONES DE INTERFAZ IGUAL ---
-  function showTicket(name, data, token) {
+function showTicket(name, data, token) {
     currentName = name; 
-    
-    // 1. Ocultamos las otras secciones
     document.getElementById('form-container').classList.add('oculto');
     document.getElementById('history-container').classList.add('oculto');
-    
-    // 2. Mostramos el contenedor del ticket
-    const ticketDisplay = document.getElementById('ticket-display');
-    ticketDisplay.classList.remove('oculto');
-    
-    // 3. Insertamos los textos
+    document.getElementById('ticket-display').classList.remove('oculto');
     document.getElementById('ticket-title').innerText = name;
     document.getElementById('ticket-token').innerText = token;
     
-    // 4. GENERACIÓN DEL QR (EL ARREGLO PARA ANDROID)
     const container = document.getElementById('qrcode');
-    container.innerHTML = ""; // Limpiar rastro previo
+    container.innerHTML = ""; 
 
-    // Usamos un pequeño retraso (200ms) para que Android detecte el ancho del div correctamente
+    // FIX ANDROID: Delay para asegurar renderizado de imagen
     setTimeout(() => {
         try {
             new QRCode(container, {
                 text: data,
-                width: 220,     // Tamaño fijo para evitar errores de cálculo en móvil
-                height: 220,    // Tamaño fijo
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H // Máxima calidad de dibujo
+                width: 250,
+                height: 250,
+                correctLevel: QRCode.CorrectLevel.H
             });
-            
-            // Forzar visualización: Algunas versiones de Android ocultan el canvas
-            // Buscamos la imagen generada y aseguramos que se vea
+            // Forzar que la imagen sea visible en Android
             const qrImg = container.querySelector('img');
-            if(qrImg) {
-                qrImg.style.display = 'block';
-                qrImg.style.margin = '0 auto';
-            }
+            if(qrImg) qrImg.style.display = 'block';
         } catch (err) {
-            console.error("Error en QR Android:", err);
-            container.innerHTML = "<p class='text-red-500 text-xs'>Error al generar imagen</p>";
+            console.error("Error generando QR:", err);
         }
-    }, 200); 
+    }, 250);
+}
+
+// Sincronización de estado (Asistió/Faltó)
+async function toggleStatus(event, index) {
+    event.stopPropagation();
+    const item = sessionHistory[index];
+    
+    if (item.status === 'pendiente') item.status = 'asistio';
+    else if (item.status === 'asistio') item.status = 'no-asistio';
+    else item.status = 'pendiente';
+
+    renderHistory();
+
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ token: item.token, status: item.status })
+        });
+        localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+    } catch(e) { console.log("Error sync estado"); }
 }
 
 function resetApp() {
-   function resetApp() {
     document.getElementById('ticket-display').classList.add('oculto');
     document.getElementById('form-container').classList.remove('oculto');
     document.getElementById('history-container').classList.remove('oculto');
     document.getElementById('userName').value = "";
-    
-    // Esto hace que cada vez que termines de registrar/ver a alguien, 
-    // la lista se actualice con lo que otros hayan hecho.
-    fetchCloudData(); 
+    fetchCloudData(); // Refrescar al volver
 }
 
 function renderHistory() {
@@ -289,39 +294,13 @@ function renderHistory() {
     document.getElementById('count-total').innerText = sessionHistory.length;
 }
 
-function toggleStatus(event, index) {
-   async function toggleStatus(event, index) {
-    event.stopPropagation();
-    const item = sessionHistory[index];
-    
-    // Cambiar estado localmente
-    if (item.status === 'pendiente') item.status = 'asistio';
-    else if (item.status === 'asistio') item.status = 'no-asistio';
-    else item.status = 'pendiente';
-
-    renderHistory(); // Actualiza la vista rápido
-
-    // Sincronizar el cambio con Google Sheets
-    try {
-        await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({
-                token: item.token,
-                status: item.status
-            })
-        });
-        localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
-    } catch(e) {
-        console.error("Error al sincronizar estado:", e);
-    }
-}
-
 function downloadQR() {
     const img = document.getElementById('qrcode').querySelector('img');
     if (img) {
         const a = document.createElement('a');
-        a.href = img.src; a.download = `${currentName}_QR.png`; a.click();
+        a.href = img.src; 
+        a.download = `QR_${currentName.replace(/\s+/g, '_')}.png`; 
+        a.click();
     }
 }
     </script>
