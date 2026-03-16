@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Underproject QR Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .qr-canvas canvas { display: none !important; }
+        .qr-canvas img { 
+            margin: 0 auto; 
+            border-radius: 12px; 
+            border: 8px solid white; 
+            display: block !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        .oculto { display: none !important; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
+        
+        /* Estados de asistencia */
+        .status-pendiente { color: #a1a1aa; border: 1px solid #3f3f46; background: rgba(63, 63, 70, 0.2); }
+        .status-asistio { color: #4ade80; border: 1px solid #166534; background: rgba(22, 101, 52, 0.2); }
+        .status-no-asistio { color: #f87171; border: 1px solid #991b1b; background: rgba(153, 27, 27, 0.2); }
+    </style>
+</head>
+<body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-4">
+
+    <div class="max-w-md w-full space-y-6">
+        <h1 class="text-xl font-bold text-center tracking-tight text-indigo-500 py-4 border-b border-zinc-800 uppercase">
+            Creación de códigos QR Underproject
+        </h1>
+
+        <div id="form-container" class="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 shadow-2xl">
+            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Nombre del Asistente</label>
+            <input type="text" id="userName" placeholder="Escribe el nombre aquí..." 
+            class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 outline-none focus:ring-2 focus:ring-indigo-600 transition-all text-lg mb-4 text-white">
+            
+            <button onclick="processRegistration()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-black py-4 rounded-xl transition-all uppercase text-sm tracking-widest">
+                Generar y Registrar
+            </button>
+        </div>
+
+        <div id="ticket-display" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center">
+            <h2 id="ticket-title" class="text-lg font-black text-white mb-2 uppercase truncate px-2"></h2>
+            <div id="qrcode" class="qr-canvas inline-block mb-3 bg-white p-2 rounded-xl min-h-[200px] min-w-[200px] flex items-center justify-center"></div>
+            <div class="bg-zinc-950 border border-zinc-800 rounded-lg py-2 mb-4 mx-4">
+                <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Identificador Único</p>
+                <p id="ticket-token" class="text-indigo-400 font-mono font-bold text-sm tracking-widest"></p>
+            </div>
+            <div class="space-y-3 px-4">
+                <button onclick="downloadQR()" class="w-full bg-white text-black font-black py-3 rounded-xl hover:bg-zinc-200 transition-all uppercase text-xs tracking-widest">
+                    ⬇️ Descargar PNG
+                </button>
+                <button onclick="resetApp()" class="w-full bg-zinc-800 text-zinc-400 font-bold py-3 rounded-xl transition-all uppercase text-xs tracking-widest border border-zinc-700">
+                    Siguiente Persona ➔
+                </button>
+            </div>
+        </div>
+
+        <div id="history-container" class="space-y-4 pt-4">
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Estadísticas</h2>
+                    <button onclick="clearFullHistory()" class="text-[9px] text-red-900 hover:text-red-500 font-bold uppercase">Limpiar Base</button>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-zinc-950 p-2 rounded-xl border border-zinc-800">
+                        <p class="text-[8px] uppercase text-zinc-500 mb-1">Asistió</p>
+                        <p id="count-asistio" class="text-green-500 font-black text-lg">0</p>
+                    </div>
+                    <div class="bg-zinc-950 p-2 rounded-xl border border-zinc-800">
+                        <p class="text-[8px] uppercase text-zinc-500 mb-1">No Asistió</p>
+                        <p id="count-no-asistio" class="text-red-500 font-black text-lg">0</p>
+                    </div>
+                    <div class="bg-zinc-950 p-2 rounded-xl border border-zinc-800">
+                        <p class="text-[8px] uppercase text-zinc-500 mb-1">Total</p>
+                        <p id="count-total" class="text-indigo-500 font-black text-lg">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <input type="text" id="searchInput" onkeyup="renderHistory()" placeholder="🔍 Buscar por nombre..." 
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 text-white">
+
+            <div id="history-list" class="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scroll"></div>
+        </div>
+    </div>
+
+    <script>
+        let sessionHistory = [];
+        let currentName = ""; 
+
+        window.onload = function() {
+            try {
+                const savedData = localStorage.getItem('underproject_db');
+                if (savedData) sessionHistory = JSON.parse(savedData);
+            } catch(e) { console.log("Error al cargar datos."); }
+            renderHistory();
+        };
+
+        function processRegistration() {
+            const input = document.getElementById('userName');
+            const name = input.value.trim();
+            if (!name) return alert("Escribe un nombre.");
+
+            const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+            const entryNumber = sessionHistory.length + 1;
+
+            sessionHistory.unshift({ 
+                name, token, 
+                data: `UNDERPROJECT | ${name} | ID: ${token}`, 
+                entryNumber, status: 'pendiente' 
+            });
+
+            saveData();
+            showTicket(name, sessionHistory[0].data, token);
+            renderHistory();
+        }
+
+        function toggleStatus(event, index) {
+            event.stopPropagation();
+            const item = sessionHistory[index];
+            if (item.status === 'pendiente') item.status = 'asistio';
+            else if (item.status === 'asistio') item.status = 'no-asistio';
+            else item.status = 'pendiente';
+            saveData();
+            renderHistory();
+        }
+
+        function saveData() {
+            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+        }
+
+        function showTicket(name, data, token) {
+            currentName = name; 
+            document.getElementById('form-container').classList.add('oculto');
+            document.getElementById('history-container').classList.add('oculto');
+            document.getElementById('ticket-display').classList.remove('oculto');
+            document.getElementById('ticket-title').innerText = name;
+            document.getElementById('ticket-token').innerText = token;
+            const container = document.getElementById('qrcode');
+            container.innerHTML = ""; 
+            new QRCode(container, { text: data, width: 200, height: 200 });
+        }
+
+        function resetApp() {
+            document.getElementById('ticket-display').classList.add('oculto');
+            document.getElementById('form-container').classList.remove('oculto');
+            document.getElementById('history-container').classList.remove('oculto');
+            document.getElementById('userName').value = "";
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const list = document.getElementById('history-list');
+            list.innerHTML = "";
+            let asis = 0, noAsis = 0;
+            
+            sessionHistory.forEach((item, index) => {
+                if (item.status === 'asistio') asis++;
+                if (item.status === 'no-asistio') noAsis++;
+
+                if (item.name.toLowerCase().includes(query)) {
+                    const div = document.createElement('div');
+                    div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all";
+                    div.onclick = () => showTicket(item.name, item.data, item.token);
+                    
+                    let label = item.status === 'asistio' ? 'Asistió' : (item.status === 'no-asistio' ? 'No Asistió' : 'Pendiente');
+                    
+                    div.innerHTML = `
+                        <div class="flex-1">
+                            <p class="font-bold text-sm text-zinc-200">${item.name} <span class="text-[8px] text-indigo-500 uppercase ml-1">Entrada n° ${item.entryNumber}</span></p>
+                            <p class="text-[9px] text-zinc-500 font-mono">${item.token}</p>
+                        </div>
+                        <button onclick="toggleStatus(event, ${index})" class="text-[8px] font-bold py-1 px-3 rounded-full transition-all uppercase ${'status-'+item.status}">${label}</button>
+                    `;
+                    list.appendChild(div);
+                }
+            });
+            document.getElementById('count-asistio').innerText = asis;
+            document.getElementById('count-no-asistio').innerText = noAsis;
+            document.getElementById('count-total').innerText = sessionHistory.length;
+        }
+
+        function clearFullHistory() {
+            if (confirm("¿Borrar todos los registros?")) {
+                sessionHistory = [];
+                saveData();
+                renderHistory();
+            }
+        }
+
+        function downloadQR() {
+            const img = document.getElementById('qrcode').querySelector('img');
+            if (img) {
+                const a = document.createElement('a');
+                a.href = img.src; a.download = `${currentName}_QR.png`; a.click();
+            }
+        }
+    </script>
+</body>
+</html>
