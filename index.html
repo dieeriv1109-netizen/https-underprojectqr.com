@@ -26,24 +26,25 @@
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(79, 70, 229, 0.2);
         }
 
-        /* QR RESPONSIVO: Máximo 250px en PC para que no se vea gigante */
+        /* --- CORRECCIÓN CRÍTICA PARA QR EN PC --- */
         .qr-canvas {
-            display: flex;
+            display: inline-flex; /* Se ajusta al contenido (el QR) */
             align-items: center;
             justify-content: center;
-            min-height: 220px;
-            max-width: 250px; /* Limita el tamaño en pantallas grandes */
+            /* Eliminamos max-width y min-height fijos que causaban el problema */
             margin: 0 auto;
             background-color: white;
             border-radius: 12px;
-            padding: 15px;
+            padding: 15px; /* Espacio blanco alrededor del QR */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
         
+        /* Asegura que la imagen generada sea nítida y no se estire */
         .qr-canvas img, .qr-canvas canvas { 
-            max-width: 100% !important;
-            height: auto !important;
-            margin: 0 auto !important; 
             display: block !important;
+            max-width: 100%;
+            height: auto !important;
+            image-rendering: pixelated; /* Mejora nitidez en algunos navegadores */
         }
 
         .oculto { display: none !important; }
@@ -92,7 +93,9 @@
         <div id="ticket-display" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center">
             <h2 id="ticket-title" class="text-lg font-black text-white mb-2 uppercase truncate px-2"></h2>
             
-            <div id="qrcode" class="qr-canvas shadow-xl mb-4"></div>
+            <div class="flex justify-center mb-4">
+                <div id="qrcode" class="qr-canvas"></div>
+            </div>
             
             <div class="bg-zinc-950 border border-zinc-800 rounded-lg py-2 mb-4 mx-4">
                 <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Identificador Único</p>
@@ -140,7 +143,8 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8fsYmrOg52gJ43V1Vh-77cSLRE4daTTJrqCqWM5bbGkC6mxadJrk2ztRYSaSPWEua/exec"; 
+        // TU URL DE GOOGLE APPS SCRIPT
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQr0nz2JAXuWcc1mfJQe46drbpcTeIzVJLbUn5H8Mo97r1435aC7rhnGPG3IoiDqt6xA/exec"; 
         
         let sessionHistory = [];
         let currentName = ""; 
@@ -159,7 +163,6 @@
                 const response = await fetch(SCRIPT_URL);
                 const cloudData = await response.json();
                 if (cloudData && cloudData.length > 0) {
-                    // Reemplazamos el historial con lo que hay en Google Sheets
                     sessionHistory = cloudData.reverse(); 
                     localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
                     renderHistory();
@@ -186,12 +189,12 @@
                 status: 'pendiente' 
             };
 
-            // Mostrar primero para velocidad
+            // Mostrar primero para velocidad UX
             sessionHistory.unshift(newGuest);
             renderHistory();
             showTicket(name, newGuest.data, token);
 
-            // Enviar a Google Sheets
+            // Enviar a Google Sheets de fondo
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
@@ -219,11 +222,12 @@
             const container = document.getElementById('qrcode');
             container.innerHTML = ""; 
 
+            // Pequeño retraso para asegurar renderizado correcto
             setTimeout(() => {
                 new QRCode(container, {
                     text: data,
-                    width: 256,
-                    height: 256,
+                    width: 220, // Tamaño fijo elegante para el código en sí
+                    height: 220,
                     colorDark : "#000000",
                     colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.H
@@ -254,7 +258,7 @@
             document.getElementById('ticket-display').classList.add('oculto');
             document.getElementById('form-container').classList.remove('oculto');
             document.getElementById('history-container').classList.remove('oculto');
-            fetchCloudData(); // Al cerrar un ticket, actualiza la lista por si alguien más registró
+            fetchCloudData(); // Sincroniza al volver
         }
 
         function renderHistory() {
@@ -269,7 +273,7 @@
 
                 if (item.name.toLowerCase().includes(query)) {
                     const div = document.createElement('div');
-                    div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all";
+                    div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all active:scale-95";
                     div.onclick = () => showTicket(item.name, item.data, item.token);
                     
                     let label = item.status === 'asistio' ? 'Asistió' : (item.status === 'no-asistio' ? 'Faltó' : 'Pendiente');
@@ -297,13 +301,31 @@
             }
         }
 
+        // --- FUNCIÓN DE DESCARGA CORREGIDA ---
         function downloadQR() {
             const canvas = document.querySelector('#qrcode canvas');
+            
             if (canvas) {
+                // 1. Obtener la fecha de hoy format DD-MM-YYYY
+                const hoy = new Date();
+                const dia = String(hoy.getDate()).padStart(2, '0');
+                const mes = String(hoy.getMonth() + 1).padStart(2, '0'); // Enero es 0
+                const anio = hoy.getFullYear();
+                const fechaFormateada = `${dia}-${mes}-${anio}`;
+
+                // 2. Limpiar el nombre de espacios y caracteres extraños
+                const nombreLimpio = currentName.replace(/[^a-z0-9]/gi, '_').replace(/_{2,}/g, '_');
+
+                // 3. Crear el nombre del archivo final
+                const nombreArchivo = `${nombreLimpio}_QR_${fechaFormateada}.png`;
+
+                // 4. Ejecutar la descarga
                 const a = document.createElement('a');
                 a.href = canvas.toDataURL("image/png");
-                a.download = `QR_${currentName}.png`;
+                a.download = nombreArchivo;
                 a.click();
+            } else {
+                alert("Error al generar la imagen para descarga.");
             }
         }
     </script>
