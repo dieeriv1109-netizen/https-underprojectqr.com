@@ -3,118 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Underproject QR Creator</title>
+    <title>Underproject QR</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 0.4; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.1); }
-        }
+        /* Estilos de scroll personalizado */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
 
-        .glow-effect {
-            position: absolute;
-            width: 180px; height: 180px;
-            background: radial-gradient(circle, rgba(79, 70, 229, 0.4) 0%, transparent 70%);
-            filter: blur(30px); z-index: -1;
-            animation: pulse-glow 4s infinite ease-in-out;
-        }
-
-        .logo-container {
-            background: linear-gradient(145deg, #18181b, #09090b);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(79, 70, 229, 0.2);
-        }
-
-        /* --- CORRECCIÓN CRÍTICA PARA QR EN PC --- */
+        /* Corrección visual para el QR en Computadora */
         .qr-canvas {
-            display: inline-flex; /* Se ajusta al contenido (el QR) */
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            /* Eliminamos max-width y min-height fijos que causaban el problema */
             margin: 0 auto;
             background-color: white;
             border-radius: 12px;
-            padding: 15px; /* Espacio blanco alrededor del QR */
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 15px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
         
-        /* Asegura que la imagen generada sea nítida y no se estire */
+        /* Asegura que la imagen no se desborde del cuadro blanco */
         .qr-canvas img, .qr-canvas canvas { 
             display: block !important;
             max-width: 100%;
             height: auto !important;
-            image-rendering: pixelated; /* Mejora nitidez en algunos navegadores */
+            image-rendering: pixelated;
         }
 
         .oculto { display: none !important; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
         
+        /* Colores de los estados */
         .status-pendiente { color: #a1a1aa; border: 1px solid #3f3f46; background: rgba(63, 63, 70, 0.2); }
         .status-asistio { color: #4ade80; border: 1px solid #166534; background: rgba(22, 101, 52, 0.2); }
         .status-no-asistio { color: #f87171; border: 1px solid #991b1b; background: rgba(153, 27, 27, 0.2); }
     </style>
 </head>
-<body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-4">
+<body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-6">
 
-    <div class="max-w-md w-full space-y-6">
+    <div class="max-w-md w-full space-y-8">
         
-        <div class="relative flex flex-col items-center py-6">
-            <div class="glow-effect"></div>
-            <div class="logo-container w-20 h-20 rounded-2xl flex items-center justify-center mb-4 relative overflow-hidden">
-                <div class="grid grid-cols-2 gap-1 w-10 h-10">
-                    <div class="border-2 border-indigo-500 rounded-sm"></div>
-                    <div class="bg-indigo-500 rounded-sm"></div>
-                    <div class="bg-indigo-500 rounded-sm"></div>
-                    <div class="border-2 border-indigo-500 rounded-sm flex items-center justify-center">
-                        <div class="w-1 h-1 bg-indigo-500"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="text-center">
-                <h1 class="text-2xl font-black tracking-tighter text-white uppercase italic">
-                    Under<span class="text-indigo-500">Project</span>
-                </h1>
-                <p class="text-[9px] text-zinc-500 uppercase tracking-[0.4em] font-bold mt-1">QR Generation System</p>
-            </div>
+        <div class="text-center py-4">
+            <h1 class="text-xl font-bold tracking-tight text-zinc-200 uppercase">
+                Creacion de Codigos QR Underproject
+            </h1>
+            <div class="h-1 w-20 bg-indigo-600 mx-auto mt-2 rounded-full"></div>
         </div>
 
         <div id="form-container" class="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 shadow-2xl">
             <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-bold">Nombre del Asistente</label>
-            <input type="text" id="userName" placeholder="Escribe el nombre aquí..." 
+            <input type="text" id="userName" placeholder="Escribir nombre aquí..." 
             class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 outline-none focus:ring-2 focus:ring-indigo-600 transition-all text-lg mb-4 text-white">
             
             <button id="btnGenerate" onclick="processRegistration()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 font-black py-4 rounded-xl transition-all uppercase text-sm tracking-widest">
-                Generar y Registrar
+                Generar y Guardar en Excel
             </button>
         </div>
 
         <div id="ticket-display" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center">
-            <h2 id="ticket-title" class="text-lg font-black text-white mb-2 uppercase truncate px-2"></h2>
+            <h2 id="ticket-title" class="text-lg font-black text-white mb-4 uppercase truncate px-2"></h2>
             
-            <div class="flex justify-center mb-4">
+            <div class="flex justify-center mb-6">
                 <div id="qrcode" class="qr-canvas"></div>
             </div>
             
-            <div class="bg-zinc-950 border border-zinc-800 rounded-lg py-2 mb-4 mx-4">
-                <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Identificador Único</p>
+            <div class="bg-zinc-950 border border-zinc-800 rounded-lg py-2 mb-6 mx-4">
+                <p class="text-[10px] text-zinc-500 uppercase tracking-widest">ID Personal</p>
                 <p id="ticket-token" class="text-indigo-400 font-mono font-bold text-sm tracking-widest"></p>
             </div>
+
             <div class="space-y-3 px-4">
                 <button onclick="downloadQR()" class="w-full bg-white text-black font-black py-3 rounded-xl hover:bg-zinc-200 transition-all uppercase text-xs tracking-widest">
                     ⬇️ Descargar PNG
                 </button>
                 <button onclick="resetApp()" class="w-full bg-zinc-800 text-zinc-400 font-bold py-3 rounded-xl transition-all uppercase text-xs tracking-widest border border-zinc-700">
-                    Siguiente Persona ➔
+                    Siguiente Registro ➔
                 </button>
             </div>
         </div>
 
-        <div id="history-container" class="space-y-4 pt-4">
+        <div id="history-container" class="space-y-4">
             <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
                 <div class="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
-                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Panel de Control Global</h2>
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Panel Global (Excel)</h2>
                     <button onclick="fetchCloudData()" class="text-[9px] text-indigo-500 hover:text-indigo-300 font-bold uppercase">Sincronizar 🔄</button>
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-center">
@@ -132,18 +103,18 @@
                     </div>
                 </div>
             </div>
-            
-            <input type="text" id="searchInput" onkeyup="renderHistory()" placeholder="🔍 Buscar asistente..." 
+
+            <input type="text" id="searchInput" onkeyup="renderHistory()" placeholder="🔍 Buscar en la lista..." 
             class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 text-white">
 
-            <div id="history-list" class="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scroll"></div>
+            <div id="history-list" class="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scroll"></div>
             
-            <button onclick="clearFullHistory()" class="w-full text-[10px] text-zinc-600 hover:text-red-500 font-bold uppercase tracking-widest pt-4">Borrar Caché Local</button>
+            <button onclick="clearFullHistory()" class="w-full text-[10px] text-zinc-600 hover:text-red-500 font-bold uppercase tracking-widest pt-4">Limpiar vista local</button>
         </div>
     </div>
 
     <script>
-        // TU URL DE GOOGLE APPS SCRIPT
+        // URL DE TU GOOGLE APPS SCRIPT ASIGNADA
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQr0nz2JAXuWcc1mfJQe46drbpcTeIzVJLbUn5H8Mo97r1435aC7rhnGPG3IoiDqt6xA/exec"; 
         
         let sessionHistory = [];
@@ -155,55 +126,65 @@
                 sessionHistory = JSON.parse(savedData);
                 renderHistory();
             }
-            fetchCloudData();
+            fetchCloudData(); // Intenta traer los datos del Excel al cargar
         };
 
+        // Función para leer datos del Excel
         async function fetchCloudData() {
             try {
                 const response = await fetch(SCRIPT_URL);
                 const cloudData = await response.json();
                 if (cloudData && cloudData.length > 0) {
-                    sessionHistory = cloudData.reverse(); 
+                    sessionHistory = cloudData.reverse().map(item => ({
+                        ...item,
+                        status: item.status || 'pendiente'
+                    }));
                     localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
                     renderHistory();
                 }
-            } catch(e) { console.log("Error de conexión a la nube."); }
+            } catch(e) { console.log("Nota: No se pudo conectar con el Excel para leer datos."); }
         }
 
+        // Función para registrar y guardar
         async function processRegistration() {
             const input = document.getElementById('userName');
             const btn = document.getElementById('btnGenerate');
             const name = input.value.trim();
+            
             if (!name) return alert("Escribe un nombre.");
 
-            btn.innerText = "REGISTRANDO...";
+            btn.innerText = "GUARDANDO EN EXCEL...";
             btn.disabled = true;
 
             const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-            
             const newGuest = { 
                 name, 
                 token, 
-                data: `UNDERPROJECT | ${name} | ID: ${token}`, 
-                entryNumber: sessionHistory.length + 1, 
+                data: `UP:${token}|${name}`, 
                 status: 'pendiente' 
             };
 
-            // Mostrar primero para velocidad UX
-            sessionHistory.unshift(newGuest);
-            renderHistory();
+            // Mostrar el QR al usuario de inmediato
             showTicket(name, newGuest.data, token);
 
-            // Enviar a Google Sheets de fondo
+            // ENVIAR AL EXCEL (POST)
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     body: JSON.stringify(newGuest)
                 });
-            } catch(e) { console.error("Error nube"); }
+                
+                // Actualizar historial local
+                sessionHistory.unshift(newGuest);
+                localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+                renderHistory();
+            } catch(e) { 
+                console.error("Error al enviar datos al script.");
+                alert("Error al guardar en la nube, pero el código se generó.");
+            }
 
-            btn.innerText = "GENERAR Y REGISTRAR";
+            btn.innerText = "Generar y Guardar en Excel";
             btn.disabled = false;
             input.value = "";
         }
@@ -212,9 +193,7 @@
             currentName = name; 
             document.getElementById('form-container').classList.add('oculto');
             document.getElementById('history-container').classList.add('oculto');
-            
-            const ticketDisplay = document.getElementById('ticket-display');
-            ticketDisplay.classList.remove('oculto');
+            document.getElementById('ticket-display').classList.remove('oculto');
             
             document.getElementById('ticket-title').innerText = name;
             document.getElementById('ticket-token').innerText = token;
@@ -222,12 +201,12 @@
             const container = document.getElementById('qrcode');
             container.innerHTML = ""; 
 
-            // Pequeño retraso para asegurar renderizado correcto
+            // Generar el código QR
             setTimeout(() => {
                 new QRCode(container, {
                     text: data,
-                    width: 220, // Tamaño fijo elegante para el código en sí
-                    height: 220,
+                    width: 250,
+                    height: 250,
                     colorDark : "#000000",
                     colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.H
@@ -235,6 +214,7 @@
             }, 100);
         }
 
+        // Cambiar estado y avisar al Excel
         async function toggleStatus(event, index) {
             event.stopPropagation();
             const item = sessionHistory[index];
@@ -244,6 +224,7 @@
             else item.status = 'pendiente';
 
             renderHistory();
+            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
 
             try {
                 await fetch(SCRIPT_URL, {
@@ -252,13 +233,6 @@
                     body: JSON.stringify({ token: item.token, status: item.status })
                 });
             } catch(e) { }
-        }
-
-        function resetApp() {
-            document.getElementById('ticket-display').classList.add('oculto');
-            document.getElementById('form-container').classList.remove('oculto');
-            document.getElementById('history-container').classList.remove('oculto');
-            fetchCloudData(); // Sincroniza al volver
         }
 
         function renderHistory() {
@@ -274,7 +248,7 @@
                 if (item.name.toLowerCase().includes(query)) {
                     const div = document.createElement('div');
                     div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all active:scale-95";
-                    div.onclick = () => showTicket(item.name, item.data, item.token);
+                    div.onclick = () => showTicket(item.name, item.data || `UP:${item.token}|${item.name}`, item.token);
                     
                     let label = item.status === 'asistio' ? 'Asistió' : (item.status === 'no-asistio' ? 'Faltó' : 'Pendiente');
                     
@@ -293,39 +267,32 @@
             document.getElementById('count-total').innerText = sessionHistory.length;
         }
 
-        function clearFullHistory() {
-            if (confirm("¿Borrar historial local? (No afectará a Google Sheets)")) {
-                localStorage.clear();
-                sessionHistory = [];
-                renderHistory();
+        function downloadQR() {
+            const canvas = document.querySelector('#qrcode canvas');
+            if (canvas) {
+                const hoy = new Date();
+                const fecha = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`;
+                const nombreLimpio = currentName.replace(/[^a-z0-9]/gi, '_');
+                
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL("image/png");
+                a.download = `${nombreLimpio}_QR_${fecha}.png`;
+                a.click();
             }
         }
 
-        // --- FUNCIÓN DE DESCARGA CORREGIDA ---
-        function downloadQR() {
-            const canvas = document.querySelector('#qrcode canvas');
-            
-            if (canvas) {
-                // 1. Obtener la fecha de hoy format DD-MM-YYYY
-                const hoy = new Date();
-                const dia = String(hoy.getDate()).padStart(2, '0');
-                const mes = String(hoy.getMonth() + 1).padStart(2, '0'); // Enero es 0
-                const anio = hoy.getFullYear();
-                const fechaFormateada = `${dia}-${mes}-${anio}`;
+        function resetApp() {
+            document.getElementById('ticket-display').classList.add('oculto');
+            document.getElementById('form-container').classList.remove('oculto');
+            document.getElementById('history-container').classList.remove('oculto');
+            fetchCloudData();
+        }
 
-                // 2. Limpiar el nombre de espacios y caracteres extraños
-                const nombreLimpio = currentName.replace(/[^a-z0-9]/gi, '_').replace(/_{2,}/g, '_');
-
-                // 3. Crear el nombre del archivo final
-                const nombreArchivo = `${nombreLimpio}_QR_${fechaFormateada}.png`;
-
-                // 4. Ejecutar la descarga
-                const a = document.createElement('a');
-                a.href = canvas.toDataURL("image/png");
-                a.download = nombreArchivo;
-                a.click();
-            } else {
-                alert("Error al generar la imagen para descarga.");
+        function clearFullHistory() {
+            if (confirm("¿Limpiar la lista local? No borrará nada de tu Excel.")) {
+                localStorage.clear();
+                sessionHistory = [];
+                renderHistory();
             }
         }
     </script>
