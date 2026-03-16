@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* Diseño visual premium */
         @keyframes pulse-glow {
             0%, 100% { opacity: 0.4; transform: scale(1); }
             50% { opacity: 0.7; transform: scale(1.1); }
@@ -15,11 +14,9 @@
 
         .glow-effect {
             position: absolute;
-            width: 180px;
-            height: 180px;
+            width: 180px; height: 180px;
             background: radial-gradient(circle, rgba(79, 70, 229, 0.4) 0%, transparent 70%);
-            filter: blur(30px);
-            z-index: -1;
+            filter: blur(30px); z-index: -1;
             animation: pulse-glow 4s infinite ease-in-out;
         }
 
@@ -29,17 +26,22 @@
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(79, 70, 229, 0.2);
         }
 
-        /* Corrección CRÍTICA para Android: Asegurar que el QR se vea siempre */
+        /* QR RESPONSIVO: Máximo 250px en PC para que no se vea gigante */
         .qr-canvas {
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 220px;
+            max-width: 250px; /* Limita el tamaño en pantallas grandes */
+            margin: 0 auto;
             background-color: white;
             border-radius: 12px;
-            padding: 10px;
+            padding: 15px;
         }
+        
         .qr-canvas img, .qr-canvas canvas { 
+            max-width: 100% !important;
+            height: auto !important;
             margin: 0 auto !important; 
             display: block !important;
         }
@@ -48,7 +50,6 @@
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
         
-        /* Estados de asistencia */
         .status-pendiente { color: #a1a1aa; border: 1px solid #3f3f46; background: rgba(63, 63, 70, 0.2); }
         .status-asistio { color: #4ade80; border: 1px solid #166534; background: rgba(22, 101, 52, 0.2); }
         .status-no-asistio { color: #f87171; border: 1px solid #991b1b; background: rgba(153, 27, 27, 0.2); }
@@ -91,7 +92,7 @@
         <div id="ticket-display" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center">
             <h2 id="ticket-title" class="text-lg font-black text-white mb-2 uppercase truncate px-2"></h2>
             
-            <div id="qrcode" class="qr-canvas inline-block mb-3 shadow-xl"></div>
+            <div id="qrcode" class="qr-canvas shadow-xl mb-4"></div>
             
             <div class="bg-zinc-950 border border-zinc-800 rounded-lg py-2 mb-4 mx-4">
                 <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Identificador Único</p>
@@ -110,8 +111,8 @@
         <div id="history-container" class="space-y-4 pt-4">
             <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
                 <div class="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
-                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Panel de Control</h2>
-                    <button onclick="clearFullHistory()" class="text-[9px] text-red-900 hover:text-red-500 font-bold uppercase">Limpiar Base Local</button>
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Panel de Control Global</h2>
+                    <button onclick="fetchCloudData()" class="text-[9px] text-indigo-500 hover:text-indigo-300 font-bold uppercase">Sincronizar 🔄</button>
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-center">
                     <div class="bg-zinc-950 p-2 rounded-xl border border-zinc-800">
@@ -129,99 +130,85 @@
                 </div>
             </div>
             
-            <input type="text" id="searchInput" onkeyup="renderHistory()" placeholder="🔍 Buscar por nombre..." 
+            <input type="text" id="searchInput" onkeyup="renderHistory()" placeholder="🔍 Buscar asistente..." 
             class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 text-white">
 
             <div id="history-list" class="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scroll"></div>
+            
+            <button onclick="clearFullHistory()" class="w-full text-[10px] text-zinc-600 hover:text-red-500 font-bold uppercase tracking-widest pt-4">Borrar Caché Local</button>
         </div>
     </div>
 
     <script>
-        // ==========================================
-        // 1. PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT
-        // ==========================================
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8fsYmrOg52gJ43V1Vh-77cSLRE4daTTJrqCqWM5bbGkC6mxadJrk2ztRYSaSPWEua/exec"; 
         
         let sessionHistory = [];
         let currentName = ""; 
 
-        // Carga inicial
         window.onload = function() {
             const savedData = localStorage.getItem('underproject_db');
             if (savedData) {
                 sessionHistory = JSON.parse(savedData);
                 renderHistory();
             }
-            fetchCloudData(); // Intenta traer de la nube
+            fetchCloudData();
         };
 
-        // Traer datos de Google Sheets
         async function fetchCloudData() {
-            if (!SCRIPT_URL || SCRIPT_URL === "TU_URL_AQUI") return;
             try {
                 const response = await fetch(SCRIPT_URL);
                 const cloudData = await response.json();
                 if (cloudData && cloudData.length > 0) {
+                    // Reemplazamos el historial con lo que hay en Google Sheets
                     sessionHistory = cloudData.reverse(); 
                     localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
                     renderHistory();
                 }
-            } catch(e) { console.log("Modo offline o error de red."); }
+            } catch(e) { console.log("Error de conexión a la nube."); }
         }
 
-        // GENERAR Y REGISTRAR (Corregido para no congelarse)
         async function processRegistration() {
             const input = document.getElementById('userName');
             const btn = document.getElementById('btnGenerate');
             const name = input.value.trim();
-            
             if (!name) return alert("Escribe un nombre.");
 
-            // Cambiar estado del botón
-            btn.innerText = "PROCESANDO...";
+            btn.innerText = "REGISTRANDO...";
             btn.disabled = true;
 
             const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-            const entryNumber = sessionHistory.length + 1;
-
+            
             const newGuest = { 
                 name, 
                 token, 
                 data: `UNDERPROJECT | ${name} | ID: ${token}`, 
-                entryNumber, 
+                entryNumber: sessionHistory.length + 1, 
                 status: 'pendiente' 
             };
 
-            // 1. MOSTRAR INMEDIATAMENTE EN PANTALLA (No espera a la nube)
+            // Mostrar primero para velocidad
             sessionHistory.unshift(newGuest);
-            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
             renderHistory();
             showTicket(name, newGuest.data, token);
 
-            // 2. ENVIAR A LA NUBE DE FONDO
-            if (SCRIPT_URL && SCRIPT_URL !== "TU_URL_AQUI") {
-                try {
-                    await fetch(SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors', 
-                        body: JSON.stringify(newGuest)
-                    });
-                } catch(e) { 
-                    console.error("Se guardó localmente. Error subiendo a la nube."); 
-                }
-            }
+            // Enviar a Google Sheets
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(newGuest)
+                });
+            } catch(e) { console.error("Error nube"); }
 
-            // Restaurar botón y limpiar input
             btn.innerText = "GENERAR Y REGISTRAR";
             btn.disabled = false;
             input.value = "";
         }
 
-        // MOSTRAR TICKET Y QR (Corregido para Android)
         function showTicket(name, data, token) {
             currentName = name; 
             document.getElementById('form-container').classList.add('oculto');
-            document.getElementById('history-container').classList.add('ocital');
+            document.getElementById('history-container').classList.add('oculto');
             
             const ticketDisplay = document.getElementById('ticket-display');
             ticketDisplay.classList.remove('oculto');
@@ -232,20 +219,18 @@
             const container = document.getElementById('qrcode');
             container.innerHTML = ""; 
 
-            // Pequeño retraso para asegurar que Android reconozca que el contenedor ya no está "oculto"
             setTimeout(() => {
                 new QRCode(container, {
                     text: data,
-                    width: 200,
-                    height: 200,
+                    width: 256,
+                    height: 256,
                     colorDark : "#000000",
                     colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.H
                 });
-            }, 50);
+            }, 100);
         }
 
-        // CAMBIAR ESTADO
         async function toggleStatus(event, index) {
             event.stopPropagation();
             const item = sessionHistory[index];
@@ -254,29 +239,24 @@
             else if (item.status === 'asistio') item.status = 'no-asistio';
             else item.status = 'pendiente';
 
-            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
             renderHistory();
 
-            if (SCRIPT_URL && SCRIPT_URL !== "TU_URL_AQUI") {
-                try {
-                    await fetch(SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify({ token: item.token, status: item.status })
-                    });
-                } catch(e) { console.log("Error sync estado"); }
-            }
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({ token: item.token, status: item.status })
+                });
+            } catch(e) { }
         }
 
-        // REINICIAR PANTALLA
         function resetApp() {
             document.getElementById('ticket-display').classList.add('oculto');
             document.getElementById('form-container').classList.remove('oculto');
             document.getElementById('history-container').classList.remove('oculto');
-            fetchCloudData(); // Trae datos nuevos si alguien más registró a otra persona
+            fetchCloudData(); // Al cerrar un ticket, actualiza la lista por si alguien más registró
         }
 
-        // DIBUJAR LISTA
         function renderHistory() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const list = document.getElementById('history-list');
@@ -296,7 +276,7 @@
                     
                     div.innerHTML = `
                         <div class="flex-1">
-                            <p class="font-bold text-sm text-zinc-200">${item.name} <span class="text-[8px] text-indigo-500 uppercase ml-1">#${item.entryNumber}</span></p>
+                            <p class="font-bold text-sm text-zinc-200">${item.name}</p>
                             <p class="text-[9px] text-zinc-500 font-mono">${item.token}</p>
                         </div>
                         <button onclick="toggleStatus(event, ${index})" class="text-[8px] font-bold py-1 px-3 rounded-full transition-all uppercase ${'status-'+item.status}">${label}</button>
@@ -309,30 +289,21 @@
             document.getElementById('count-total').innerText = sessionHistory.length;
         }
 
-        // LIMPIAR LOCAL
         function clearFullHistory() {
-            if (confirm("¿Borrar todos los registros locales? Esto no borrará la nube.")) {
+            if (confirm("¿Borrar historial local? (No afectará a Google Sheets)")) {
+                localStorage.clear();
                 sessionHistory = [];
-                localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
                 renderHistory();
             }
         }
 
-        // DESCARGAR IMAGEN
         function downloadQR() {
-            const img = document.getElementById('qrcode').querySelector('img');
-            const canvas = document.getElementById('qrcode').querySelector('canvas');
-            
-            // Toma la imagen o el canvas (lo que el navegador móvil haya logrado generar)
-            const source = img && img.src ? img.src : (canvas ? canvas.toDataURL("image/png") : null);
-            
-            if (source) {
+            const canvas = document.querySelector('#qrcode canvas');
+            if (canvas) {
                 const a = document.createElement('a');
-                a.href = source; 
-                a.download = `QR_${currentName.replace(/\s+/g, '_')}.png`; 
+                a.href = canvas.toDataURL("image/png");
+                a.download = `QR_${currentName}.png`;
                 a.click();
-            } else {
-                alert("Error al descargar. Toma una captura de pantalla por seguridad.");
             }
         }
     </script>
