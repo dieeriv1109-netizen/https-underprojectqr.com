@@ -130,147 +130,200 @@
     </div>
 
     <script>
-        let sessionHistory = [];
-        let currentName = ""; 
+      // 1. COLOCA AQUÍ TU URL DE GOOGLE APPS SCRIPT
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8fsYmrOg52gJ43V1Vh-77cSLRE4daTTJrqCqWM5bbGkC6mxadJrk2ztRYSaSPWEua/exec"; 
 
-        // Carga robusta de datos
-        window.onload = function() {
-            try {
-                const savedData = localStorage.getItem('underproject_db');
-                if (savedData) {
-                    sessionHistory = JSON.parse(savedData);
-                }
-            } catch(e) { 
-                console.error("Error al cargar localStorage:", e); 
-            }
+let sessionHistory = [];
+let currentName = ""; 
+
+// Función para traer datos de la nube
+async function fetchCloudData() {
+    try {
+        const response = await fetch(SCRIPT_URL);
+        const cloudData = await response.json();
+        if (cloudData && cloudData.length > 0) {
+            // Invertimos para que los nuevos salgan arriba
+            sessionHistory = cloudData.reverse(); 
+            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
             renderHistory();
-        };
+        }
+    } catch(e) { 
+        console.log("Error sincronizando: ", e); 
+    }
+}
 
-        function processRegistration() {
-            const input = document.getElementById('userName');
-            const name = input.value.trim();
-            if (!name) return alert("Escribe un nombre.");
+// Carga inicial
+window.onload = function() {
+    // Cargar lo que haya en memoria del cel primero
+    const savedData = localStorage.getItem('underproject_db');
+    if (savedData) {
+        sessionHistory = JSON.parse(savedData);
+        renderHistory();
+    }
+    // Luego buscar en la nube lo más reciente
+    fetchCloudData();
+};
 
-            const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-            const entryNumber = sessionHistory.length + 1;
+// Registrar nuevo asistente
+async function processRegistration() {
+    const input = document.getElementById('userName');
+    const name = input.value.trim();
+    if (!name) return alert("Escribe un nombre.");
 
-            sessionHistory.unshift({ 
-                name, 
-                token, 
-                data: `UNDERPROJECT | ${name} | ID: ${token}`, 
-                entryNumber, 
-                status: 'pendiente' 
+    const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    const entryNumber = sessionHistory.length + 1;
+
+    const newGuest = { 
+        name, 
+        token, 
+        data: `UNDERPROJECT | ${name} | ID: ${token}`, 
+        entryNumber, 
+        status: 'pendiente' 
+    };
+
+    // Mostrar de inmediato en pantalla (UX rápida)
+    sessionHistory.unshift(newGuest);
+    renderHistory();
+    showTicket(name, newGuest.data, token);
+
+    // Enviar a Google Sheets de fondo
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors', 
+            body: JSON.stringify(newGuest)
+        });
+        localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+    } catch(e) { 
+        console.error("No se pudo subir a la nube"); 
+    }
+}
+
+// --- MANTÉN TUS FUNCIONES DE INTERFAZ IGUAL ---
+  function showTicket(name, data, token) {
+    currentName = name; 
+    
+    // 1. Ocultamos las otras secciones
+    document.getElementById('form-container').classList.add('oculto');
+    document.getElementById('history-container').classList.add('oculto');
+    
+    // 2. Mostramos el contenedor del ticket
+    const ticketDisplay = document.getElementById('ticket-display');
+    ticketDisplay.classList.remove('oculto');
+    
+    // 3. Insertamos los textos
+    document.getElementById('ticket-title').innerText = name;
+    document.getElementById('ticket-token').innerText = token;
+    
+    // 4. GENERACIÓN DEL QR (EL ARREGLO PARA ANDROID)
+    const container = document.getElementById('qrcode');
+    container.innerHTML = ""; // Limpiar rastro previo
+
+    // Usamos un pequeño retraso (200ms) para que Android detecte el ancho del div correctamente
+    setTimeout(() => {
+        try {
+            new QRCode(container, {
+                text: data,
+                width: 220,     // Tamaño fijo para evitar errores de cálculo en móvil
+                height: 220,    // Tamaño fijo
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H // Máxima calidad de dibujo
             });
-
-            saveData();
-            showTicket(name, sessionHistory[0].data, token);
-            renderHistory();
-        }
-
-        function saveData() {
-            try {
-                localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
-            } catch (e) {
-                alert("Error: No se pudo guardar en este navegador. Revisa el espacio o modo incógnito.");
-            }
-        }
-
-        // Corrección para móviles: Delay y Redibujado
-        function showTicket(name, data, token) {
-            currentName = name; 
-            document.getElementById('form-container').classList.add('oculto');
-            document.getElementById('history-container').classList.add('oculto');
-            const display = document.getElementById('ticket-display');
-            display.classList.remove('oculto');
             
-            document.getElementById('ticket-title').innerText = name;
-            document.getElementById('ticket-token').innerText = token;
-            
-            const container = document.getElementById('qrcode');
-            container.innerHTML = ""; 
-
-            // Pequeño timeout para asegurar que el div es visible antes de inyectar el QR
-            setTimeout(() => {
-                new QRCode(container, {
-                    text: data,
-                    width: 256,
-                    height: 256,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.H // Nivel alto para mejor escaneo en pantallas
-                });
-            }, 150);
-        }
-
-        function toggleStatus(event, index) {
-            event.stopPropagation();
-            const item = sessionHistory[index];
-            if (item.status === 'pendiente') item.status = 'asistio';
-            else if (item.status === 'asistio') item.status = 'no-asistio';
-            else item.status = 'pendiente';
-            saveData();
-            renderHistory();
-        }
-
-        function resetApp() {
-            document.getElementById('ticket-display').classList.add('oculto');
-            document.getElementById('form-container').classList.remove('oculto');
-            document.getElementById('history-container').classList.remove('oculto');
-            document.getElementById('userName').value = "";
-            renderHistory();
-        }
-
-        function renderHistory() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const list = document.getElementById('history-list');
-            list.innerHTML = "";
-            let asis = 0, noAsis = 0;
-            
-            sessionHistory.forEach((item, index) => {
-                if (item.status === 'asistio') asis++;
-                if (item.status === 'no-asistio') noAsis++;
-
-                if (item.name.toLowerCase().includes(query)) {
-                    const div = document.createElement('div');
-                    div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all active:scale-[0.98]";
-                    div.onclick = () => showTicket(item.name, item.data, item.token);
-                    
-                    let label = item.status === 'asistio' ? 'Asistió' : (item.status === 'no-asistio' ? 'Faltó' : 'Pendiente');
-                    
-                    div.innerHTML = `
-                        <div class="flex-1">
-                            <p class="font-bold text-sm text-zinc-200">${item.name} <span class="text-[8px] text-indigo-500 uppercase ml-1">#${item.entryNumber}</span></p>
-                            <p class="text-[9px] text-zinc-500 font-mono tracking-tighter">${item.token}</p>
-                        </div>
-                        <button onclick="toggleStatus(event, ${index})" class="text-[8px] font-black py-1.5 px-3 rounded-full transition-all uppercase shadow-inner ${'status-'+item.status}">${label}</button>
-                    `;
-                    list.appendChild(div);
-                }
-            });
-            document.getElementById('count-asistio').innerText = asis;
-            document.getElementById('count-no-asistio').innerText = noAsis;
-            document.getElementById('count-total').innerText = sessionHistory.length;
-        }
-
-        function clearFullHistory() {
-            if (confirm("⚠️ ¿Estás seguro? Se borrarán todos los registros localmente.")) {
-                sessionHistory = [];
-                saveData();
-                renderHistory();
+            // Forzar visualización: Algunas versiones de Android ocultan el canvas
+            // Buscamos la imagen generada y aseguramos que se vea
+            const qrImg = container.querySelector('img');
+            if(qrImg) {
+                qrImg.style.display = 'block';
+                qrImg.style.margin = '0 auto';
             }
+        } catch (err) {
+            console.error("Error en QR Android:", err);
+            container.innerHTML = "<p class='text-red-500 text-xs'>Error al generar imagen</p>";
         }
+    }, 200); 
+}
 
-        function downloadQR() {
-            const img = document.getElementById('qrcode').querySelector('img');
-            if (img) {
-                const a = document.createElement('a');
-                a.href = img.src; 
-                a.download = `QR_${currentName.replace(/\s+/g, '_')}.png`; 
-                a.click();
-            } else {
-                alert("Error al obtener la imagen. Inténtalo de nuevo.");
-            }
+function resetApp() {
+   function resetApp() {
+    document.getElementById('ticket-display').classList.add('oculto');
+    document.getElementById('form-container').classList.remove('oculto');
+    document.getElementById('history-container').classList.remove('oculto');
+    document.getElementById('userName').value = "";
+    
+    // Esto hace que cada vez que termines de registrar/ver a alguien, 
+    // la lista se actualice con lo que otros hayan hecho.
+    fetchCloudData(); 
+}
+
+function renderHistory() {
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    const list = document.getElementById('history-list');
+    list.innerHTML = "";
+    let asis = 0, noAsis = 0;
+    
+    sessionHistory.forEach((item, index) => {
+        if (item.status === 'asistio') asis++;
+        if (item.status === 'no-asistio') noAsis++;
+
+        if (item.name.toLowerCase().includes(query)) {
+            const div = document.createElement('div');
+            div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all";
+            div.onclick = () => showTicket(item.name, item.data, item.token);
+            
+            let label = item.status === 'asistio' ? 'Asistió' : (item.status === 'no-asistio' ? 'Faltó' : 'Pendiente');
+            
+            div.innerHTML = `
+                <div class="flex-1">
+                    <p class="font-bold text-sm text-zinc-200">${item.name} <span class="text-[8px] text-indigo-500 uppercase ml-1">#${item.entryNumber}</span></p>
+                    <p class="text-[9px] text-zinc-500 font-mono">${item.token}</p>
+                </div>
+                <button onclick="toggleStatus(event, ${index})" class="text-[8px] font-bold py-1 px-3 rounded-full transition-all uppercase ${'status-'+item.status}">${label}</button>
+            `;
+            list.appendChild(div);
         }
+    });
+    document.getElementById('count-asistio').innerText = asis;
+    document.getElementById('count-no-asistio').innerText = noAsis;
+    document.getElementById('count-total').innerText = sessionHistory.length;
+}
+
+function toggleStatus(event, index) {
+   async function toggleStatus(event, index) {
+    event.stopPropagation();
+    const item = sessionHistory[index];
+    
+    // Cambiar estado localmente
+    if (item.status === 'pendiente') item.status = 'asistio';
+    else if (item.status === 'asistio') item.status = 'no-asistio';
+    else item.status = 'pendiente';
+
+    renderHistory(); // Actualiza la vista rápido
+
+    // Sincronizar el cambio con Google Sheets
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                token: item.token,
+                status: item.status
+            })
+        });
+        localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+    } catch(e) {
+        console.error("Error al sincronizar estado:", e);
+    }
+}
+
+function downloadQR() {
+    const img = document.getElementById('qrcode').querySelector('img');
+    if (img) {
+        const a = document.createElement('a');
+        a.href = img.src; a.download = `${currentName}_QR.png`; a.click();
+    }
+}
     </script>
 </body>
 </html>
