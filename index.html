@@ -3,40 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Underproject QR</title>
+    <title>Underproject QR & Scanner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        /* Estilos de scroll personalizado */
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
 
-        /* Corrección visual para el QR en Computadora */
-        .qr-canvas {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto;
+        #qrcode {
             background-color: white;
-            border-radius: 12px;
-            padding: 15px;
+            padding: 16px;
+            border-radius: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            max-width: 220px; 
+            margin: 0 auto;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            box-sizing: border-box;
         }
         
-        /* Asegura que la imagen no se desborde del cuadro blanco */
-        .qr-canvas img, .qr-canvas canvas { 
-            display: block !important;
-            max-width: 100%;
+        #qrcode img, #qrcode canvas { 
+            width: 100% !important;
+            max-width: 100% !important;
             height: auto !important;
+            display: block !important;
             image-rendering: pixelated;
         }
 
         .oculto { display: none !important; }
         
-        /* Colores de los estados */
         .status-pendiente { color: #a1a1aa; border: 1px solid #3f3f46; background: rgba(63, 63, 70, 0.2); }
         .status-asistio { color: #4ade80; border: 1px solid #166534; background: rgba(22, 101, 52, 0.2); }
         .status-no-asistio { color: #f87171; border: 1px solid #991b1b; background: rgba(153, 27, 27, 0.2); }
+        
+        #reader video { border-radius: 0.75rem; object-fit: cover; width: 100%; }
+
+        /* Efecto de flash verde cuando detecta el código */
+        .flash-success {
+            border-color: #4ade80 !important;
+            box-shadow: 0 0 25px 5px rgba(74, 222, 128, 0.6) !important;
+            transition: all 0.2s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-black text-white font-sans min-h-screen flex flex-col items-center p-6">
@@ -45,7 +56,7 @@
         
         <div class="text-center py-4">
             <h1 class="text-xl font-bold tracking-tight text-zinc-200 uppercase">
-                Creacion de Codigos QR Underproject
+                Underproject Acceso
             </h1>
             <div class="h-1 w-20 bg-indigo-600 mx-auto mt-2 rounded-full"></div>
         </div>
@@ -55,16 +66,52 @@
             <input type="text" id="userName" placeholder="Escribir nombre aquí..." 
             class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 outline-none focus:ring-2 focus:ring-indigo-600 transition-all text-lg mb-4 text-white">
             
-            <button id="btnGenerate" onclick="processRegistration()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 font-black py-4 rounded-xl transition-all uppercase text-sm tracking-widest">
-                Generar y Guardar en Excel
+            <button id="btnGenerate" onclick="processRegistration()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 font-black py-4 rounded-xl transition-all uppercase text-sm tracking-widest mb-3">
+                Generar y Guardar
+            </button>
+
+            <button onclick="startScanner()" class="w-full bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700 active:scale-95 font-black py-4 rounded-xl transition-all uppercase text-sm tracking-widest flex justify-center items-center gap-2">
+                📷 Escanear Entrada
             </button>
         </div>
 
-        <div id="ticket-display" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center">
+        <div id="scanner-container" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center shadow-2xl transition-all">
+            <h2 class="text-lg font-black text-white mb-4 uppercase tracking-widest">Escáner de Acceso</h2>
+            
+            <div id="reader-wrapper" class="relative w-full mb-4 bg-black rounded-xl overflow-hidden border-4 border-zinc-800 min-h-[300px] transition-all">
+                <div id="reader" class="w-full h-full relative z-0"></div>
+            </div>
+
+            <div class="mb-4">
+                <input type="file" id="qr-input-file" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+                <label for="qr-input-file" class="w-full flex justify-center items-center gap-2 bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-600 active:scale-95 font-bold py-4 rounded-xl transition-all uppercase text-xs tracking-widest cursor-pointer shadow-lg">
+                    📁 Subir QR de Galería
+                </label>
+            </div>
+            
+            <button onclick="stopScanner()" class="w-full bg-red-600/20 text-red-500 border border-red-900 font-bold py-3 rounded-xl transition-all uppercase text-xs tracking-widest">
+                Cancelar y Volver
+            </button>
+        </div>
+
+        <div id="result-display" class="oculto bg-zinc-900 p-8 rounded-3xl border-4 text-center shadow-2xl flex flex-col items-center justify-center">
+            <div id="result-icon" class="text-7xl mb-4"></div>
+            <h2 id="result-title" class="text-2xl font-black mb-2 uppercase tracking-widest"></h2>
+            <p id="result-message" class="text-lg text-zinc-300 font-bold mb-8"></p>
+            
+            <button onclick="startScanner()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-black py-4 rounded-xl transition-all uppercase text-sm tracking-widest mb-3">
+                📷 Escanear Otra
+            </button>
+            <button onclick="resetApp()" class="w-full bg-zinc-800 text-zinc-400 border border-zinc-700 font-bold py-4 rounded-xl transition-all uppercase text-xs tracking-widest">
+                Volver al Inicio
+            </button>
+        </div>
+
+        <div id="ticket-display" class="oculto bg-zinc-900 p-6 rounded-3xl border-2 border-indigo-600 text-center shadow-2xl">
             <h2 id="ticket-title" class="text-lg font-black text-white mb-4 uppercase truncate px-2"></h2>
             
-            <div class="flex justify-center mb-6">
-                <div id="qrcode" class="qr-canvas"></div>
+            <div class="flex justify-center mb-6 w-full px-4">
+                <div id="qrcode"></div>
             </div>
             
             <div class="bg-zinc-950 border border-zinc-800 rounded-lg py-2 mb-6 mx-4">
@@ -77,7 +124,7 @@
                     ⬇️ Descargar PNG
                 </button>
                 <button onclick="resetApp()" class="w-full bg-zinc-800 text-zinc-400 font-bold py-3 rounded-xl transition-all uppercase text-xs tracking-widest border border-zinc-700">
-                    Siguiente Registro ➔
+                    Volver al Inicio ➔
                 </button>
             </div>
         </div>
@@ -85,7 +132,7 @@
         <div id="history-container" class="space-y-4">
             <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
                 <div class="flex items-center justify-between mb-3 border-b border-zinc-800 pb-2">
-                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Panel Global (Excel)</h2>
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Panel Global</h2>
                     <button onclick="fetchCloudData()" class="text-[9px] text-indigo-500 hover:text-indigo-300 font-bold uppercase">Sincronizar 🔄</button>
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-center">
@@ -114,85 +161,56 @@
     </div>
 
     <script>
-        // URL DE TU GOOGLE APPS SCRIPT ASIGNADA
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQr0nz2JAXuWcc1mfJQe46drbpcTeIzVJLbUn5H8Mo97r1435aC7rhnGPG3IoiDqt6xA/exec"; 
-        
         let sessionHistory = [];
         let currentName = ""; 
+        let html5QrcodeScanner = null;
 
         window.onload = function() {
             const savedData = localStorage.getItem('underproject_db');
-            if (savedData) {
-                sessionHistory = JSON.parse(savedData);
-                renderHistory();
-            }
-            fetchCloudData(); // Intenta traer los datos del Excel al cargar
+            if (savedData) { sessionHistory = JSON.parse(savedData); renderHistory(); }
+            fetchCloudData();
         };
 
-        // Función para leer datos del Excel
         async function fetchCloudData() {
             try {
                 const response = await fetch(SCRIPT_URL);
                 const cloudData = await response.json();
                 if (cloudData && cloudData.length > 0) {
-                    sessionHistory = cloudData.reverse().map(item => ({
-                        ...item,
-                        status: item.status || 'pendiente'
-                    }));
+                    sessionHistory = cloudData.reverse().map(item => ({ ...item, status: item.status || 'pendiente' }));
                     localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
                     renderHistory();
                 }
-            } catch(e) { console.log("Nota: No se pudo conectar con el Excel para leer datos."); }
+            } catch(e) { console.log("Usando datos locales."); }
         }
 
-        // Función para registrar y guardar
         async function processRegistration() {
             const input = document.getElementById('userName');
             const btn = document.getElementById('btnGenerate');
             const name = input.value.trim();
-            
             if (!name) return alert("Escribe un nombre.");
 
-            btn.innerText = "GUARDANDO EN EXCEL...";
-            btn.disabled = true;
+            btn.innerText = "GUARDANDO..."; btn.disabled = true;
 
             const token = 'UP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-            const newGuest = { 
-                name, 
-                token, 
-                data: `UP:${token}|${name}`, 
-                status: 'pendiente' 
-            };
-
-            // Mostrar el QR al usuario de inmediato
+            const newGuest = { name, token, data: `UP:${token}|${name}`, status: 'pendiente' };
             showTicket(name, newGuest.data, token);
 
-            // ENVIAR AL EXCEL (POST)
             try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify(newGuest)
-                });
-                
-                // Actualizar historial local
+                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newGuest) });
                 sessionHistory.unshift(newGuest);
                 localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
                 renderHistory();
-            } catch(e) { 
-                console.error("Error al enviar datos al script.");
-                alert("Error al guardar en la nube, pero el código se generó.");
-            }
+            } catch(e) { alert("Guardado localmente. Error de red."); }
 
-            btn.innerText = "Generar y Guardar en Excel";
-            btn.disabled = false;
-            input.value = "";
+            btn.innerText = "Generar y Guardar"; btn.disabled = false; input.value = "";
         }
 
         function showTicket(name, data, token) {
             currentName = name; 
             document.getElementById('form-container').classList.add('oculto');
             document.getElementById('history-container').classList.add('oculto');
+            document.getElementById('result-display').classList.add('oculto');
             document.getElementById('ticket-display').classList.remove('oculto');
             
             document.getElementById('ticket-title').innerText = name;
@@ -200,39 +218,154 @@
             
             const container = document.getElementById('qrcode');
             container.innerHTML = ""; 
-
-            // Generar el código QR
             setTimeout(() => {
-                new QRCode(container, {
-                    text: data,
-                    width: 250,
-                    height: 250,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.H
-                });
+                new QRCode(container, { text: data, width: 200, height: 200, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
             }, 100);
         }
 
-        // Cambiar estado y avisar al Excel
+        // --- MANEJADOR DE LA PANTALLA DE RESULTADOS ---
+        function showResult(title, message, type) {
+            document.getElementById('form-container').classList.add('oculto');
+            document.getElementById('history-container').classList.add('oculto');
+            document.getElementById('scanner-container').classList.add('oculto');
+            document.getElementById('ticket-display').classList.add('oculto');
+            
+            const resultDisplay = document.getElementById('result-display');
+            const iconEl = document.getElementById('result-icon');
+            const titleEl = document.getElementById('result-title');
+            const messageEl = document.getElementById('result-message');
+            
+            resultDisplay.classList.remove('oculto');
+            resultDisplay.className = "bg-zinc-900 p-8 rounded-3xl border-4 text-center shadow-2xl flex flex-col items-center justify-center w-full";
+            titleEl.className = "text-2xl font-black mb-2 uppercase tracking-widest";
+            
+            // whitespace-pre-line permite que los "Enters" (\n) se vean en pantalla
+            messageEl.className = "text-sm md:text-lg text-zinc-300 font-bold mb-8 whitespace-pre-line text-left bg-black/30 p-4 rounded-xl w-full border border-zinc-800 break-words";
+            
+            titleEl.innerText = title; 
+            messageEl.innerText = message;
+            
+            if (type === 'green') {
+                resultDisplay.classList.add('border-green-500'); titleEl.classList.add('text-green-500'); iconEl.innerText = "✅";
+            } else if (type === 'red') {
+                resultDisplay.classList.add('border-red-500'); titleEl.classList.add('text-red-500'); iconEl.innerText = "❌";
+            } else {
+                resultDisplay.classList.add('border-yellow-500'); titleEl.classList.add('text-yellow-500'); iconEl.innerText = "⚠️";
+            }
+        }
+
+        // --- LÓGICA UNIFICADA DE VALIDACIÓN ---
+        async function processScannedQR(decodedText) {
+            // Apagar cámara si estaba prendida
+            if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                try { await html5QrcodeScanner.stop(); html5QrcodeScanner.clear(); } catch(e) {}
+            }
+
+            const match = decodedText.match(/UP:(UP-[A-Z0-9]+)\|/);
+            
+            if (!match) { 
+                showResult("No Válido", "QR externo. No pertenece a este evento.", "red"); 
+                return; 
+            }
+
+            const tokenScaneado = match[1];
+            const guestIndex = sessionHistory.findIndex(g => g.token === tokenScaneado);
+
+            if (guestIndex === -1) { 
+                showResult("No Encontrado", "QR no encontrado en el historial.", "red"); 
+                return; 
+            }
+
+            const guest = sessionHistory[guestIndex];
+
+            if (guest.status === 'asistio') { 
+                showResult("Ya Escaneado", `¡Cuidado!\nEl QR de ${guest.name} ya fue usado anteriormente.`, "yellow"); 
+                return; 
+            }
+
+            guest.status = 'asistio';
+            localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
+            renderHistory();
+
+            // Formatear datos para la pantalla de éxito
+            const hoy = new Date();
+            const fechaHora = hoy.toLocaleDateString('es-ES') + " a las " + hoy.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'});
+            
+            const detalles = `👤 Nombre: ${guest.name}\n🎟️ ID Tarjeta: ${guest.token}\n📅 Escaneado el: ${fechaHora}\n\n✅ ACCESO CONFIRMADO`;
+            
+            showResult("Verificado", detalles, "green");
+
+            try { await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ token: guest.token, status: 'asistio' }) }); } catch(e) {}
+        }
+
+        function startScanner() {
+            document.getElementById('form-container').classList.add('oculto');
+            document.getElementById('history-container').classList.add('oculto');
+            document.getElementById('result-display').classList.add('oculto');
+            document.getElementById('scanner-container').classList.remove('oculto');
+            
+            document.getElementById('reader-wrapper').classList.remove('flash-success');
+
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            
+            const config = { fps: 15, qrbox: { width: 250, height: 250 } }; 
+            
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(err => { alert("Error al acceder a la cámara. Revisa los permisos."); stopScanner(); });
+        }
+
+        function stopScanner() {
+            document.getElementById('scanner-container').classList.add('oculto');
+            document.getElementById('form-container').classList.remove('oculto');
+            document.getElementById('history-container').classList.remove('oculto');
+            if (html5QrcodeScanner) {
+                try { html5QrcodeScanner.stop().then(() => { html5QrcodeScanner.clear(); }).catch(e => {}); } catch(e) {}
+            }
+        }
+
+        async function onScanSuccess(decodedText) {
+            document.getElementById('reader-wrapper').classList.add('flash-success');
+            setTimeout(() => { processScannedQR(decodedText); }, 300);
+        }
+
+        // --- ESCANEO DESDE GALERÍA ---
+        async function handleFileUpload(event) {
+            if (event.target.files.length === 0) return;
+            const file = event.target.files[0];
+            
+            document.getElementById('scanner-container').classList.add('oculto');
+            document.getElementById('result-display').classList.remove('oculto');
+            document.getElementById('result-display').className = "bg-zinc-900 p-8 rounded-3xl border-4 text-center shadow-2xl flex flex-col items-center justify-center border-zinc-500";
+            document.getElementById('result-icon').innerText = "⏳";
+            document.getElementById('result-title').innerText = "Analizando...";
+            document.getElementById('result-title').className = "text-2xl font-black mb-2 uppercase tracking-widest text-zinc-400";
+            document.getElementById('result-message').innerText = "Buscando código QR en la imagen...";
+            document.getElementById('result-message').className = "text-lg text-zinc-300 font-bold mb-8";
+            
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+
+            try {
+                const decodedText = await html5QrcodeScanner.scanFile(file, true);
+                await processScannedQR(decodedText);
+            } catch (err) {
+                showResult("Error", "No se detectó ningún código QR en la imagen seleccionada.", "red");
+            }
+            
+            event.target.value = ""; 
+        }
+
         async function toggleStatus(event, index) {
             event.stopPropagation();
             const item = sessionHistory[index];
-            
             if (item.status === 'pendiente') item.status = 'asistio';
             else if (item.status === 'asistio') item.status = 'no-asistio';
             else item.status = 'pendiente';
 
             renderHistory();
             localStorage.setItem('underproject_db', JSON.stringify(sessionHistory));
-
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify({ token: item.token, status: item.status })
-                });
-            } catch(e) { }
+            try { await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ token: item.token, status: item.status }) }); } catch(e) { }
         }
 
         function renderHistory() {
@@ -249,7 +382,6 @@
                     const div = document.createElement('div');
                     div.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex justify-between items-center hover:border-indigo-500 cursor-pointer transition-all active:scale-95";
                     div.onclick = () => showTicket(item.name, item.data || `UP:${item.token}|${item.name}`, item.token);
-                    
                     let label = item.status === 'asistio' ? 'Asistió' : (item.status === 'no-asistio' ? 'Faltó' : 'Pendiente');
                     
                     div.innerHTML = `
@@ -273,7 +405,6 @@
                 const hoy = new Date();
                 const fecha = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`;
                 const nombreLimpio = currentName.replace(/[^a-z0-9]/gi, '_');
-                
                 const a = document.createElement('a');
                 a.href = canvas.toDataURL("image/png");
                 a.download = `${nombreLimpio}_QR_${fecha}.png`;
@@ -283,6 +414,8 @@
 
         function resetApp() {
             document.getElementById('ticket-display').classList.add('oculto');
+            document.getElementById('scanner-container').classList.add('oculto');
+            document.getElementById('result-display').classList.add('oculto');
             document.getElementById('form-container').classList.remove('oculto');
             document.getElementById('history-container').classList.remove('oculto');
             fetchCloudData();
@@ -290,9 +423,7 @@
 
         function clearFullHistory() {
             if (confirm("¿Limpiar la lista local? No borrará nada de tu Excel.")) {
-                localStorage.clear();
-                sessionHistory = [];
-                renderHistory();
+                localStorage.clear(); sessionHistory = []; renderHistory();
             }
         }
     </script>
